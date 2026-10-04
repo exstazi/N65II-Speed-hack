@@ -1,0 +1,57 @@
+N65II v1.1.7 — BROAD 4/6/7 TELEMETRY + REBOOT LOGGER — VALIDATION
+===================================================================
+
+Purpose
+-------
+Fix v1.1.6's incorrect early-stop assumption that 0x70 DATA[26] must echo the requested 0x58 mode.
+The supplied hardware log showed baseline, mode 4, mode 6, mode 7 and even restore mode 5 all reading back as driveMode=0.
+Therefore v1.1.7 treats DATA[26] as non-decisive for this 6001 / Meter 2058 diagnostic.
+
+Diagnostic sequence
+-------------------
+1. Capture baseline while stationary.
+2. Send 0x58=4, capture raw B003 + parsed NAVEE frames, then restore 0x58=5.
+3. Send 0x58=6, capture, then restore 0x58=5.
+4. Send 0x58=7, capture, then restore 0x58=5.
+5. Compare latest 0x70/0x90/0x91/0x92 frames with baseline.
+6. Select the candidate with the strongest observable telemetry delta; ties prefer 4.
+7. If no candidate produced any observable delta, fallback to mode 4 because BLDC0005 has the known dedicated mode-4 branch.
+8. Re-apply the selected candidate, capture a final pre-reboot snapshot.
+9. ALWAYS enter WAIT_POWER_CYCLE and show STARTA OM NU.
+10. After a physical OFF/ON + reconnect, CHECK AFTER REBOOT captures broad telemetry again.
+11. Export includes event log, raw 0x70 snapshots, parsed frame snapshots, and raw B003 notification chunks.
+
+Important behavior
+------------------
+- The logger never enters DFU and never flashes firmware.
+- The logger no longer marks mode4Verified or mode4VolatileVerified from DATA[26] alone.
+- Firmware release preflight remains blocked after the diagnostic until the evidence is reviewed.
+- Movement >0.5 km/h aborts the sweep.
+- Unexpected disconnect during active capture stops the sweep but preserves captured evidence.
+- Disconnect while WAIT_POWER_CYCLE is expected and preserved as part of the reboot procedure.
+
+Explicit NAVEE requests
+-----------------------
+0x58=4 : 55 AA 00 58 01 04 5C FE FD
+0x58=5 : 55 AA 00 58 01 05 5D FE FD
+0x58=6 : 55 AA 00 58 01 06 5E FE FD
+0x58=7 : 55 AA 00 58 01 07 5F FE FD
+READ 70: 55 AA 00 70 6F FE FD
+READ 90: 55 AA 00 90 8F FE FD
+READ 91: 55 AA 00 91 90 FE FD
+READ 92: 55 AA 00 92 91 FE FD
+
+Static checks completed
+-----------------------
+- Kotlin protocol builder compiled with kotlinc.
+- Exact 0x58 and read frames above verified from NaveeProtocol.
+- BleManager.kt (), [], {} balances: PASS.
+- App.kt (), [], {} balances: PASS.
+- Models.kt (), [], {} balances: PASS.
+- Old v1.1.6 early-stop strings removed from active source.
+- VersionCode 8 / VersionName 1.1.7.
+
+Environment limitation
+----------------------
+A full Android APK build was not performed in this environment because an Android SDK/android.jar is not installed.
+Use BUILD_N65II.bat on the Windows development machine for the complete Android build.
